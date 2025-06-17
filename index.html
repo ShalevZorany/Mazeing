@@ -45,7 +45,16 @@ const maze = [
 ];
 
 let player = { x: 1, y: 1 };        // תא ההתחלה
-const goal = {  x: 8, y: 8 };       // תא המטרה
+const enemy = { x: 8, y: 1 };       // מיקום אויב התחלתי
+let foods = [];                     // מאכלים לאיסוף
+
+for (let y = 0; y < maze.length; y++) {
+    for (let x = 0; x < maze[y].length; x++) {
+        if (maze[y][x] === " " && !(x === player.x && y === player.y) && !(x === enemy.x && y === enemy.y)) {
+            foods.push({ x, y });
+        }
+    }
+}
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -59,15 +68,29 @@ function draw() {
             }
         }
     }
-    // ציור יעד
+    // ציור מאכלים
     ctx.fillStyle = "gold";
-    ctx.fillRect(goal.x * cellSize + 8, goal.y * cellSize + 8, cellSize - 16, cellSize - 16);
+    for (const f of foods) {
+        ctx.beginPath();
+        ctx.arc(f.x * cellSize + cellSize / 2,
+                f.y * cellSize + cellSize / 2,
+                cellSize / 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
 
     // ציור שחקן
-    ctx.fillStyle = "crimson";
+    ctx.fillStyle = "blue";
     ctx.beginPath();
     ctx.arc(player.x * cellSize + cellSize / 2,
             player.y * cellSize + cellSize / 2,
+            cellSize / 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ציור אויב
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(enemy.x * cellSize + cellSize / 2,
+            enemy.y * cellSize + cellSize / 2,
             cellSize / 3, 0, Math.PI * 2);
     ctx.fill();
 }
@@ -83,11 +106,41 @@ function move(dx, dy) {
     const ny = player.y + dy;
     if (canMove(nx, ny)) {
         player = { x: nx, y: ny };
-        if (player.x === goal.x && player.y === goal.y) {
+        // בדיקה אם אכלנו מאכל
+        foods = foods.filter(f => !(f.x === player.x && f.y === player.y));
+        if (foods.length === 0) {
             setTimeout(() => alert("ניצחת!"), 50);
         }
     }
+    enemyMove();
     requestAnimationFrame(draw);
+}
+
+function enemyMove() {
+    const options = [];
+    const dirs = [
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 }
+    ];
+    for (const d of dirs) {
+        const nx = enemy.x + d.x;
+        const ny = enemy.y + d.y;
+        if (canMove(nx, ny)) {
+            options.push({ x: nx, y: ny });
+        }
+    }
+    if (options.length === 0) return;
+    options.sort((a, b) =>
+        Math.abs(a.x - player.x) + Math.abs(a.y - player.y) -
+        (Math.abs(b.x - player.x) + Math.abs(b.y - player.y))
+    );
+    enemy.x = options[0].x;
+    enemy.y = options[0].y;
+    if (enemy.x === player.x && enemy.y === player.y) {
+        setTimeout(() => alert("נכשלת"), 50);
+    }
 }
 
 // ----- שליטה במגע -----
