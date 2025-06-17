@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maze Touch Game</title>
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: #f0f0f0;
+        user-select: none;
+        -webkit-user-select: none;
+        -ms-user-select: none;
+    }
+    canvas {
+        border: 2px solid #333;
+        touch-action: none;           /* מבטל גלילה ברירת-מחדל במגע */
+    }
+</style>
+</head>
+<body>
+<canvas id="maze" width="400" height="400"></canvas>
+
+<script>
+const canvas   = document.getElementById("maze");
+const ctx      = canvas.getContext("2d");
+const cellSize = 40;                // 10×10 משבצות על קנבס 400×400
+
+// מבוך פשוט ( '#' = קיר, ' ' = שביל )
+const maze = [
+"##########",
+"#        #",
+"# ###### #",
+"# #    # #",
+"# # ## # #",
+"# # ## # #",
+"# #    # #",
+"# ###### #",
+"#        #",
+"##########"
+];
+
+let player = { x: 1, y: 1 };        // תא ההתחלה
+const goal = {  x: 8, y: 8 };       // תא המטרה
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ציור קירות
+    for (let y = 0; y < maze.length; y++) {
+        for (let x = 0; x < maze[y].length; x++) {
+            if (maze[y][x] === "#") {
+                ctx.fillStyle = "#444";
+                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
+        }
+    }
+    // ציור יעד
+    ctx.fillStyle = "gold";
+    ctx.fillRect(goal.x * cellSize + 8, goal.y * cellSize + 8, cellSize - 16, cellSize - 16);
+
+    // ציור שחקן
+    ctx.fillStyle = "crimson";
+    ctx.beginPath();
+    ctx.arc(player.x * cellSize + cellSize / 2,
+            player.y * cellSize + cellSize / 2,
+            cellSize / 3, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function canMove(nx, ny) {
+    return maze[ny][nx] === " ";
+}
+
+function move(dx, dy) {
+    const nx = player.x + dx;
+    const ny = player.y + dy;
+    if (canMove(nx, ny)) {
+        player = { x: nx, y: ny };
+        if (player.x === goal.x && player.y === goal.y) {
+            setTimeout(() => alert("ניצחת!"), 50);
+        }
+    }
+    draw();
+}
+
+// ----- שליטה במגע -----
+let touchStartX = null, touchStartY = null;
+
+canvas.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+}, { passive: true });
+
+canvas.addEventListener("touchend", e => {
+    if (touchStartX === null || touchStartY === null) return;
+    const t  = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const threshold = 30;           // מרחק מינימלי לזיהוי החלקה
+
+    if (Math.max(absX, absY) < threshold) {
+        touchStartX = touchStartY = null;
+        return;
+    }
+    if (absX > absY) {
+        move(dx > 0 ? 1 : -1, 0);   // החלקה אופקית
+    } else {
+        move(0, dy > 0 ? 1 : -1);   // החלקה אנכית
+    }
+    touchStartX = touchStartY = null;
+}, { passive: true });
+
+// תמיכה במקלדת (בדסקטופ)
+document.addEventListener("keydown", e => {
+    switch (e.key) {
+        case "ArrowUp":    move(0, -1); break;
+        case "ArrowDown":  move(0,  1); break;
+        case "ArrowLeft":  move(-1, 0); break;
+        case "ArrowRight": move(1,  0); break;
+    }
+});
+
+draw();
+</script>
+</body>
+</html>
