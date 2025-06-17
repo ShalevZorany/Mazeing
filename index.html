@@ -73,7 +73,9 @@ function draw() {
 }
 
 function canMove(nx, ny) {
-    return maze[ny][nx] === " ";
+    return ny >= 0 && ny < maze.length &&
+           nx >= 0 && nx < maze[ny].length &&
+           maze[ny][nx] === " ";
 }
 
 function move(dx, dy) {
@@ -85,19 +87,21 @@ function move(dx, dy) {
             setTimeout(() => alert("ניצחת!"), 50);
         }
     }
-    draw();
+    requestAnimationFrame(draw);
 }
 
 // ----- שליטה במגע -----
 let touchStartX = null, touchStartY = null;
 
 canvas.addEventListener("touchstart", e => {
+    e.preventDefault();
     const t = e.touches[0];
     touchStartX = t.clientX;
     touchStartY = t.clientY;
-}, { passive: true });
+}, { passive: false });
 
 canvas.addEventListener("touchend", e => {
+    e.preventDefault();
     if (touchStartX === null || touchStartY === null) return;
     const t  = e.changedTouches[0];
     const dx = t.clientX - touchStartX;
@@ -116,7 +120,7 @@ canvas.addEventListener("touchend", e => {
         move(0, dy > 0 ? 1 : -1);   // החלקה אנכית
     }
     touchStartX = touchStartY = null;
-}, { passive: true });
+}, { passive: false });
 
 // תמיכה במקלדת (בדסקטופ)
 document.addEventListener("keydown", e => {
@@ -128,7 +132,7 @@ document.addEventListener("keydown", e => {
     }
 });
 
-draw();
+requestAnimationFrame(draw);
 </script>
 </body>
 </html>
