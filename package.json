@@ -1,0 +1,8 @@
+{
+  "name": "mazeing",
+  "version": "1.0.0",
+  "description": "Maze game",
+  "scripts": {
+    "test": "echo \"No tests specified\""
+  }
+}
