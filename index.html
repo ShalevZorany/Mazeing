@@ -20,204 +20,203 @@
         border: 2px solid #333;
         touch-action: none;           /* מבטל גלילה ברירת-מחדל במגע */
     }
+    #hud {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(255,255,255,0.8);
+        padding: 5px;
+        border-radius: 5px;
+        font-family: sans-serif;
+    }
+    #editorOverlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 24px;
+        font-family: sans-serif;
+    }
 </style>
 </head>
 <body>
+<div id="hud">
+  <span>נקודות: <span id="score">0</span></span> |
+  <span>חיים: <span id="lives">3</span></span> |
+  <span>שלב: <span id="level">1</span></span> |
+  <span>שיא: <span id="highScore">0</span></span> |
+  <button id="saveBtn">שמירה</button>
+  <button id="loadBtn">טעינה</button>
+  <button id="editBtn">עריכה</button>
+</div>
 <canvas id="maze"></canvas>
+<div id="editorOverlay" style="display:none">מצב עריכה פעיל - לחץ על תאים כדי לשנות קיר. לחץ E כדי לצאת.</div>
+<audio id="bgMusic" loop></audio>
+
 
 <script>
-const canvas   = document.getElementById("maze");
-const ctx      = canvas.getContext("2d");
-const cellSize = 20;                // גודל תא קטן יותר למבוכים גדולים
+const canvas = document.getElementById('maze');
+const ctx = canvas.getContext('2d');
+const cellSize = 20;
 
-function generateMaze(width, height) {
-    if (width % 2 === 0)  width++;   // חייבים ממדים אי‑זוגיים
-    if (height % 2 === 0) height++;
+let level = parseInt(localStorage.getItem('level')) || 1;
+let score = parseInt(localStorage.getItem('score')) || 0;
+let lives = parseInt(localStorage.getItem('lives')) || 3;
+let highScore = parseInt(localStorage.getItem('highScore')) || 0;
+let maze = [];
+let player = {x:1,y:1};
+let enemies = [];
+let foods = [];
+let traps = [];
+let editing = false;
 
-    const maze = Array.from({ length: height }, () => Array(width).fill("#"));
-    const stack = [{ x: 1, y: 1 }];
-    const visited = Array.from({ length: height }, () => Array(width).fill(false));
-    visited[1][1] = true;
-    maze[1][1] = " ";
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, dur){
+  const o=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  o.connect(g);g.connect(audioCtx.destination);
+  o.frequency.value=freq; o.start();
+  g.gain.setValueAtTime(0.1,audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur/1000);
+  o.stop(audioCtx.currentTime+dur/1000);
+}
+const playEatSound=()=>beep(600,100);
+const playHitSound=()=>beep(200,200);
+const playWinSound=()=>beep(800,300);
 
-    while (stack.length) {
-        const current = stack[stack.length - 1];
-        const dirs = [
-            { x: 2, y: 0 },
-            { x: -2, y: 0 },
-            { x: 0, y: 2 },
-            { x: 0, y: -2 }
-        ];
-        for (let i = dirs.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
-        }
-
-        let moved = false;
-        for (const d of dirs) {
-            const nx = current.x + d.x;
-            const ny = current.y + d.y;
-            if (ny > 0 && ny < height - 1 && nx > 0 && nx < width - 1 && !visited[ny][nx]) {
-                visited[ny][nx] = true;
-                maze[current.y + d.y / 2][current.x + d.x / 2] = " ";
-                maze[ny][nx] = " ";
-                stack.push({ x: nx, y: ny });
-                moved = true;
-                break;
-            }
-        }
-        if (!moved) stack.pop();
+function generateMaze(width, height){
+  if(width%2===0) width++;
+  if(height%2===0) height++;
+  const maze = Array.from({length:height},()=>Array(width).fill('#'));
+  const stack=[{x:1,y:1}];
+  const visited=Array.from({length:height},()=>Array(width).fill(false));
+  visited[1][1]=true; maze[1][1]=' ';
+  while(stack.length){
+    const c=stack[stack.length-1];
+    const dirs=[{x:2,y:0},{x:-2,y:0},{x:0,y:2},{x:0,y:-2}];
+    for(let i=dirs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[dirs[i],dirs[j]]=[dirs[j],dirs[i]];}
+    let moved=false;
+    for(const d of dirs){
+      const nx=c.x+d.x, ny=c.y+d.y;
+      if(ny>0 && ny<height-1 && nx>0 && nx<width-1 && !visited[ny][nx]){
+        visited[ny][nx]=true;
+        maze[c.y+d.y/2][c.x+d.x/2]=' ';
+        maze[ny][nx]=' ';
+        stack.push({x:nx,y:ny});
+        moved=true; break;
+      }
     }
-
-    return maze.map(row => row.join(""));
+    if(!moved) stack.pop();
+  }
+  return maze.map(r=>r.join(''));
 }
 
-const maze = generateMaze(21, 21);
-canvas.width  = maze[0].length * cellSize;
-canvas.height = maze.length * cellSize;
-
-let player = { x: 1, y: 1 };        // תא ההתחלה
-const enemy = { x: maze[0].length - 2, y: maze.length - 2 }; // מיקום אויב התחלתי
-let foods = [];                     // מאכלים לאיסוף
-
-for (let y = 0; y < maze.length; y++) {
-    for (let x = 0; x < maze[y].length; x++) {
-        if (maze[y][x] === " " && !(x === player.x && y === player.y) && !(x === enemy.x && y === enemy.y)) {
-            foods.push({ x, y });
-        }
-    }
+function startLevel(){
+  const size=21+(level-1)*4;
+  maze=generateMaze(size,size);
+  canvas.width=maze[0].length*cellSize;
+  canvas.height=maze.length*cellSize;
+  player={x:1,y:1};
+  enemies=[{x:maze[0].length-2,y:maze.length-2,type:1}];
+  if(level>1) enemies.push({x:1,y:maze.length-2,type:2});
+  foods=[]; traps=[];
+  for(let y=0;y<maze.length;y++)
+    for(let x=0;x<maze[y].length;x++)
+      if(maze[y][x]==' ' && !(x==player.x&&y==player.y)) foods.push({x,y});
+  if(level>2) traps.push({x:Math.floor(maze[0].length/2),y:1,dx:0,dy:1,range:maze.length-2,step:0});
+  updateHUD();
+  requestAnimationFrame(draw);
 }
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // ציור קירות
-    for (let y = 0; y < maze.length; y++) {
-        for (let x = 0; x < maze[y].length; x++) {
-            if (maze[y][x] === "#") {
-                ctx.fillStyle = "#444";
-                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-            }
-        }
-    }
-    // ציור מאכלים
-    ctx.fillStyle = "gold";
-    for (const f of foods) {
-        ctx.beginPath();
-        ctx.arc(f.x * cellSize + cellSize / 2,
-                f.y * cellSize + cellSize / 2,
-                cellSize / 6, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // ציור שחקן
-    ctx.fillStyle = "blue";
-    ctx.beginPath();
-    ctx.arc(player.x * cellSize + cellSize / 2,
-            player.y * cellSize + cellSize / 2,
-            cellSize / 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ציור אויב
-    ctx.fillStyle = "red";
-    ctx.beginPath();
-    ctx.arc(enemy.x * cellSize + cellSize / 2,
-            enemy.y * cellSize + cellSize / 2,
-            cellSize / 3, 0, Math.PI * 2);
-    ctx.fill();
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('lives').textContent=lives;
+  document.getElementById('level').textContent=level;
+  document.getElementById('highScore').textContent=highScore;
 }
 
-function canMove(nx, ny) {
-    return ny >= 0 && ny < maze.length &&
-           nx >= 0 && nx < maze[ny].length &&
-           maze[ny][nx] === " ";
+function canMove(nx,ny){
+  return ny>=0&&ny<maze.length&&nx>=0&&nx<maze[ny].length&&maze[ny][nx]==' ';
 }
 
-function move(dx, dy) {
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-    if (canMove(nx, ny)) {
-        player = { x: nx, y: ny };
-        // בדיקה אם אכלנו מאכל
-        foods = foods.filter(f => !(f.x === player.x && f.y === player.y));
-        if (foods.length === 0) {
-            setTimeout(() => alert("ניצחת!"), 50);
-        }
-    }
-    enemyMove();
-    requestAnimationFrame(draw);
+function replaceChar(str,i,ch){return str.substring(0,i)+ch+str.substring(i+1);} 
+
+function move(dx,dy){
+  const nx=player.x+dx, ny=player.y+dy;
+  if(canMove(nx,ny)){
+    player={x:nx,y:ny};
+    foods=foods.filter(f=>{
+      if(f.x==nx&&f.y==ny){score+=10;playEatSound();return false;}return true;});
+    if(foods.length===0){playWinSound();level++;startLevel();return;}
+  }
+  moveEnemies();
+  updateTraps();
+  updateHUD();
+  requestAnimationFrame(draw);
 }
 
-function enemyMove() {
-    const options = [];
-    const dirs = [
-        { x: 1, y: 0 },
-        { x: -1, y: 0 },
-        { x: 0, y: 1 },
-        { x: 0, y: -1 }
-    ];
-    for (const d of dirs) {
-        const nx = enemy.x + d.x;
-        const ny = enemy.y + d.y;
-        if (canMove(nx, ny)) {
-            options.push({ x: nx, y: ny });
-        }
-    }
-    if (options.length === 0) return;
-    options.sort((a, b) =>
-        Math.abs(a.x - player.x) + Math.abs(a.y - player.y) -
-        (Math.abs(b.x - player.x) + Math.abs(b.y - player.y))
-    );
-    enemy.x = options[0].x;
-    enemy.y = options[0].y;
-    if (enemy.x === player.x && enemy.y === player.y) {
-        setTimeout(() => alert("נכשלת"), 50);
-    }
+function moveEnemies(){
+  enemies.forEach(e=>{
+    const opts=[];const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+    dirs.forEach(d=>{const nx=e.x+d.x,ny=e.y+d.y;if(canMove(nx,ny)) opts.push({x:nx,y:ny});});
+    if(opts.length===0) return;
+    if(e.type===1){opts.sort((a,b)=>Math.abs(a.x-player.x)+Math.abs(a.y-player.y)-Math.abs(b.x-player.x)-Math.abs(b.y-player.y));Object.assign(e,opts[0]);}
+    else {Object.assign(e,opts[Math.floor(Math.random()*opts.length)]);} 
+    if(e.x==player.x&&e.y==player.y) hit();
+  });
 }
 
-// ----- שליטה במגע -----
-let touchStartX = null, touchStartY = null;
+function updateTraps(){
+  traps.forEach(t=>{
+    t.x+=t.dx; t.y+=t.dy; t.step++;
+    if(t.step>=t.range){t.step=0;t.dx*=-1;t.dy*=-1;}
+    if(player.x==t.x&&player.y==t.y) hit();
+  });
+}
 
-canvas.addEventListener("touchstart", e => {
-    e.preventDefault();
-    const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
-}, { passive: false });
+function hit(){
+  lives--; playHitSound();
+  if(lives<=0){
+    if(score>highScore){highScore=score; localStorage.setItem('highScore',highScore);}
+    alert('Game Over');
+    level=1; score=0; lives=3;
+  }
+  startLevel();
+}
 
-canvas.addEventListener("touchend", e => {
-    e.preventDefault();
-    if (touchStartX === null || touchStartY === null) return;
-    const t  = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    const absX = Math.abs(dx);
-    const absY = Math.abs(dy);
-    const threshold = 30;           // מרחק מינימלי לזיהוי החלקה
+function saveGame(){localStorage.setItem('level',level);localStorage.setItem('score',score);localStorage.setItem('lives',lives);localStorage.setItem('highScore',highScore);} 
+function loadGame(){level=parseInt(localStorage.getItem('level'))||1;score=parseInt(localStorage.getItem('score'))||0;lives=parseInt(localStorage.getItem('lives'))||3;highScore=parseInt(localStorage.getItem('highScore'))||0;startLevel();}
 
-    if (Math.max(absX, absY) < threshold) {
-        touchStartX = touchStartY = null;
-        return;
-    }
-    if (absX > absY) {
-        move(dx > 0 ? 1 : -1, 0);   // החלקה אופקית
-    } else {
-        move(0, dy > 0 ? 1 : -1);   // החלקה אנכית
-    }
-    touchStartX = touchStartY = null;
-}, { passive: false });
+function toggleEdit(){editing=!editing;document.getElementById('editorOverlay').style.display=editing?'flex':'none';}
 
-// תמיכה במקלדת (בדסקטופ)
-document.addEventListener("keydown", e => {
-    switch (e.key) {
-        case "ArrowUp":    move(0, -1); break;
-        case "ArrowDown":  move(0,  1); break;
-        case "ArrowLeft":  move(-1, 0); break;
-        case "ArrowRight": move(1,  0); break;
-    }
-});
+document.getElementById('saveBtn').onclick=saveGame;
+document.getElementById('loadBtn').onclick=loadGame;
+document.getElementById('editBtn').onclick=toggleEdit;
 
-requestAnimationFrame(draw);
+canvas.addEventListener('click',e=>{if(!editing) return;const r=canvas.getBoundingClientRect();const x=Math.floor((e.clientX-r.left)/cellSize);const y=Math.floor((e.clientY-r.top)/cellSize);maze[y]=maze[y][x]=='#'?replaceChar(maze[y],x,' '):replaceChar(maze[y],x,'#');requestAnimationFrame(draw);});
+
+let touchStartX=null,touchStartY=null;
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];touchStartX=t.clientX;touchStartY=t.clientY;},{passive:false});
+canvas.addEventListener('touchend',e=>{e.preventDefault();if(touchStartX===null||touchStartY===null)return;const t=e.changedTouches[0];const dx=t.clientX-touchStartX;const dy=t.clientY-touchStartY;const absX=Math.abs(dx);const absY=Math.abs(dy);const thr=30;if(Math.max(absX,absY)<thr){touchStartX=touchStartY=null;return;}if(absX>absY)move(dx>0?1:-1,0);else move(0,dy>0?1:-1);touchStartX=touchStartY=null;},{passive:false});
+
+document.addEventListener('keydown',e=>{if(editing && (e.key==='e'||e.key==='E')){toggleEdit();return;}switch(e.key){case 'ArrowUp':move(0,-1);break;case 'ArrowDown':move(0,1);break;case 'ArrowLeft':move(-1,0);break;case 'ArrowRight':move(1,0);break;}});
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<maze.length;y++)
+    for(let x=0;x<maze[y].length;x++)
+      if(maze[y][x]=='#'){ctx.fillStyle='#444';ctx.fillRect(x*cellSize,y*cellSize,cellSize,cellSize);} 
+  ctx.fillStyle='gold';
+  foods.forEach(f=>{ctx.beginPath();ctx.arc(f.x*cellSize+cellSize/2,f.y*cellSize+cellSize/2,cellSize/6,0,Math.PI*2);ctx.fill();});
+  ctx.fillStyle='blue'; ctx.beginPath(); ctx.arc(player.x*cellSize+cellSize/2,player.y*cellSize+cellSize/2,cellSize/3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='red'; enemies.forEach(en=>{ctx.beginPath();ctx.arc(en.x*cellSize+cellSize/2,en.y*cellSize+cellSize/2,cellSize/3,0,Math.PI*2);ctx.fill();});
+  ctx.fillStyle='purple'; traps.forEach(t=>{ctx.fillRect(t.x*cellSize,t.y*cellSize,cellSize,cellSize);});
+}
+
+startLevel();
 </script>
 </body>
 </html>
