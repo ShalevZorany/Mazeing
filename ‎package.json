@@ -1,0 +1,8 @@
+{
+  "name": "maze-touch-game",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "live-server",
+    "test": "echo \"no tests yet\" && exit 0"
+  }
+}
