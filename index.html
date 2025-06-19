@@ -23,29 +23,61 @@
 </style>
 </head>
 <body>
-<canvas id="maze" width="400" height="400"></canvas>
+<canvas id="maze"></canvas>
 
 <script>
 const canvas   = document.getElementById("maze");
 const ctx      = canvas.getContext("2d");
-const cellSize = 40;                // 10×10 משבצות על קנבס 400×400
+const cellSize = 20;                // גודל תא קטן יותר למבוכים גדולים
 
-// מבוך פשוט ( '#' = קיר, ' ' = שביל )
-const maze = [
-"##########",
-"#        #",
-"# ###### #",
-"# #    # #",
-"# # ## # #",
-"# # ## # #",
-"# #    # #",
-"# ###### #",
-"#        #",
-"##########"
-];
+function generateMaze(width, height) {
+    if (width % 2 === 0)  width++;   // חייבים ממדים אי‑זוגיים
+    if (height % 2 === 0) height++;
+
+    const maze = Array.from({ length: height }, () => Array(width).fill("#"));
+    const stack = [{ x: 1, y: 1 }];
+    const visited = Array.from({ length: height }, () => Array(width).fill(false));
+    visited[1][1] = true;
+    maze[1][1] = " ";
+
+    while (stack.length) {
+        const current = stack[stack.length - 1];
+        const dirs = [
+            { x: 2, y: 0 },
+            { x: -2, y: 0 },
+            { x: 0, y: 2 },
+            { x: 0, y: -2 }
+        ];
+        for (let i = dirs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+        }
+
+        let moved = false;
+        for (const d of dirs) {
+            const nx = current.x + d.x;
+            const ny = current.y + d.y;
+            if (ny > 0 && ny < height - 1 && nx > 0 && nx < width - 1 && !visited[ny][nx]) {
+                visited[ny][nx] = true;
+                maze[current.y + d.y / 2][current.x + d.x / 2] = " ";
+                maze[ny][nx] = " ";
+                stack.push({ x: nx, y: ny });
+                moved = true;
+                break;
+            }
+        }
+        if (!moved) stack.pop();
+    }
+
+    return maze.map(row => row.join(""));
+}
+
+const maze = generateMaze(21, 21);
+canvas.width  = maze[0].length * cellSize;
+canvas.height = maze.length * cellSize;
 
 let player = { x: 1, y: 1 };        // תא ההתחלה
-const enemy = { x: 8, y: 1 };       // מיקום אויב התחלתי
+const enemy = { x: maze[0].length - 2, y: maze.length - 2 }; // מיקום אויב התחלתי
 let foods = [];                     // מאכלים לאיסוף
 
 for (let y = 0; y < maze.length; y++) {
