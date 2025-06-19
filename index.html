@@ -142,6 +142,32 @@ function canMove(nx,ny){
   return ny>=0&&ny<maze.length&&nx>=0&&nx<maze[ny].length&&maze[ny][nx]==' ';
 }
 
+function findNextStep(start, goal){
+  const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  const visited=Array.from({length:maze.length},()=>Array(maze[0].length).fill(false));
+  const prev=Array.from({length:maze.length},()=>Array(maze[0].length).fill(null));
+  const q=[{x:start.x,y:start.y}];
+  visited[start.y][start.x]=true;
+  while(q.length){
+    const c=q.shift();
+    if(c.x===goal.x&&c.y===goal.y) break;
+    for(const d of dirs){
+      const nx=c.x+d.x, ny=c.y+d.y;
+      if(canMove(nx,ny) && !visited[ny][nx]){
+        visited[ny][nx]=true;
+        prev[ny][nx]=c;
+        q.push({x:nx,y:ny});
+      }
+    }
+  }
+  if(!visited[goal.y][goal.x]) return null;
+  let cur=goal;
+  while(prev[cur.y][cur.x] && !(prev[cur.y][cur.x].x===start.x && prev[cur.y][cur.x].y===start.y)){
+    cur=prev[cur.y][cur.x];
+  }
+  return cur;
+}
+
 function replaceChar(str,i,ch){return str.substring(0,i)+ch+str.substring(i+1);} 
 
 function move(dx,dy){
@@ -159,12 +185,16 @@ function move(dx,dy){
 }
 
 function moveEnemies(){
+  const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
   enemies.forEach(e=>{
-    const opts=[];const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
-    dirs.forEach(d=>{const nx=e.x+d.x,ny=e.y+d.y;if(canMove(nx,ny)) opts.push({x:nx,y:ny});});
-    if(opts.length===0) return;
-    if(e.type===1){opts.sort((a,b)=>Math.abs(a.x-player.x)+Math.abs(a.y-player.y)-Math.abs(b.x-player.x)-Math.abs(b.y-player.y));Object.assign(e,opts[0]);}
-    else {Object.assign(e,opts[Math.floor(Math.random()*opts.length)]);} 
+    if(e.type===1){
+      const step=findNextStep(e, player);
+      if(step) { e.x=step.x; e.y=step.y; }
+    }else{
+      const opts=[];
+      dirs.forEach(d=>{const nx=e.x+d.x,ny=e.y+d.y;if(canMove(nx,ny)) opts.push({x:nx,y:ny});});
+      if(opts.length) Object.assign(e,opts[Math.floor(Math.random()*opts.length)]);
+    }
     if(e.x==player.x&&e.y==player.y) hit();
   });
 }
