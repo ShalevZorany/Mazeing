@@ -202,6 +202,12 @@ function move(dx,dy){
       startLevel();
       return;
     }
+    // Check collisions immediately after the player moves
+    if(enemies.some(e=>e.x===player.x && e.y===player.y) ||
+       traps.some(t=>t.x===player.x && t.y===player.y)){
+      hit();
+      return;
+    }
   }
   moveEnemies();
   updateTraps();
